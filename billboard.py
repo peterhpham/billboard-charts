@@ -134,7 +134,7 @@ class ChartData:
     """
 
     def __init__(
-        self, name, date=None, year=None, fetch=True, max_retries=5, timeout=25
+        self, name, date=None, year=None, fetch=True, max_retries=5, timeout=25, isVietnam=False
     ):
         """Constructs a new ChartData instance.
 
@@ -161,6 +161,7 @@ class ChartData:
                 If None, no timeout is applied.
         """
         self.name = name
+        self.isVietnam=isVietnam
 
         # Check if the user supplied both a date and a year (they can't)
         if sum(map(bool, [date, year])) >= 2:
@@ -466,19 +467,22 @@ class ChartData:
         """GETs the corresponding chart data from Billboard.com, then parses
         the data using BeautifulSoup.
         """
-        if not self.date:
-            if not self.year:
-                # Fetch latest chart
-                url = "https://www.billboard.com/charts/%s" % (self.name)
+        if not self.isVietnam:
+            if not self.date:
+                if not self.year:
+                    # Fetch latest chart
+                    url = "https://www.billboard.com/charts/%s" % (self.name)
+                else:
+                    url = "https://www.billboard.com/charts/year-end/%s/%s" % (
+                        self.year,
+                        self.name,
+                    )
             else:
-                url = "https://www.billboard.com/charts/year-end/%s/%s" % (
-                    self.year,
-                    self.name,
-                )
+                url = "https://www.billboard.com/charts/%s/%s" % (self.name, self.date)
         else:
-            url = "https://www.billboard.com/charts/%s/%s" % (self.name, self.date)
+            url = "https://billboardvn.vn/billboard-vietnam-top-vietnamese-songs"
 
-        session = _get_session_with_retries(max_retries=self._max_retries)
+        session = _get_session_with_retries(self, max_retries=self._max_retries)
         req = session.get(url, timeout=self._timeout)
         if req.status_code == 404:
             message = "Chart not found (perhaps the name is misspelled?)"
@@ -489,10 +493,16 @@ class ChartData:
         self._parsePage(soup)
 
 
-def _get_session_with_retries(max_retries):
+def _get_session_with_retries(self, max_retries):
     session = requests.Session()
+    
+    if self.isVietnam:
+        url = "https://billboardvn.vn"
+    else:
+        url = "https://www.billboard.com"
+
     session.mount(
-        "https://www.billboard.com",
+        url,
         requests.adapters.HTTPAdapter(max_retries=max_retries),
     )
     return session
